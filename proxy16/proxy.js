@@ -25,6 +25,7 @@ var Exchanges = require('./exchanges.js');
 var Peertube = require('./peertube/index.js');
 var Bots = require('./bots.js');
 var SystemNotify = require('./systemnotify.js');
+var Emails = require('./emails/emails.js');
 //////////////
 
 
@@ -45,9 +46,10 @@ var Proxy = function (settings, manage, test) {
 	var peertube = new Peertube()
 	var bots = new Bots(settings.bots)
 	var systemnotify = new SystemNotify(settings.systemnotify)
+	var emails = new Emails(settings.emails)
 
 	self.userDataPath = null
-	self.session = 'pocketnetproxy' //f.makeid()
+	self.session = 'pocketnetproxy'
 
 	f.mix({
 		wss, server, pocketnet, nodeControl,
@@ -325,8 +327,8 @@ var Proxy = function (settings, manage, test) {
 			return wallet.init()
 		},
 
-		addqueue: function (key, address, ip) {
-			return wallet.kit.addqueue(key, address, ip)
+		addqueue: function (key, address, ip, amount, emailsClbk) {
+			return wallet.kit.addqueue(key, address, ip, amount, emailsClbk)
 		},
 
 
@@ -339,6 +341,11 @@ var Proxy = function (settings, manage, test) {
 		setPrivateKey: function (key, private) {
 			return wallet.kit.setPrivateKey(key, private)
 		},
+
+		check : function(key){
+			return wallet.kit.check(key);
+		},
+
 
 		re: function () {
 			return this.destroy().then(r => {
@@ -353,7 +360,9 @@ var Proxy = function (settings, manage, test) {
 
 		sendwithprivatekey: function ({ address, amount, key }) {
 			return wallet.kit.sendwithprivatekey(address, amount, key)
-		}
+		},
+
+
 	}
 
 	
@@ -383,6 +392,53 @@ var Proxy = function (settings, manage, test) {
 		info: function (compact) {
 			return systemnotify.info(compact)
 		}
+	}
+
+	
+    self.emails = {
+
+		init: function () {
+  
+		  return emails.init();
+  
+		},
+	
+		inited : function(){
+		  return emails.inited()
+		},
+	
+		destroy: function () {
+		  return emails.destroy()
+		},
+  
+	
+		re : function(){
+		  return this.destroy().then(r => {
+			  this.init()
+		  })
+		},
+	
+		info : function(){
+		  return emails.info()
+		},
+	
+		check : function({email}){
+		  return emails.kit.check(email);
+		},
+  
+		verify : function({email}){
+		  return emails.kit.verify(email)
+			
+		},
+  
+		checkcode : function({email, code}){
+		  return emails.kit.checkcode(email, code);
+		},
+  
+		update : function({email, code}){
+		  return emails.kit.update(email, code);
+		},
+  
 	}
 
 	self.wss = {
@@ -622,6 +678,7 @@ var Proxy = function (settings, manage, test) {
 				server: self.server.info(compact),
 				wss: self.wss.info(compact),
 				wallet: self.wallet.info(compact),
+				emails : self.emails.info(compact),
 				remote: remote.info(compact),
 				admins: settings.admins,
 				peertube : self.peertube.info(compact),
@@ -656,6 +713,7 @@ var Proxy = function (settings, manage, test) {
 
 			if (!self.nodeManager.inited()) wrks.push('nodeManager')
 			if (!self.wallet.inited()) wrks.push('wallet')
+            if (!self.emails.inited()) wrks.push('emails')
 
 			if (!wrks.length) {
 				return Promise.resolve({})
@@ -674,7 +732,7 @@ var Proxy = function (settings, manage, test) {
 
 			status = 1
 
-			return this.initlist(['server', 'wss', 'nodeManager', 'wallet', 'firebase', 'nodeControl', 'exchanges', 'peertube', 'bots']).then(r => {
+			return this.initlist(['server', 'wss', 'nodeManager', 'wallet', 'emails', 'firebase', 'nodeControl', 'exchanges', 'peertube', 'bots']).then(r => {
 
 				status = 2
 
@@ -717,7 +775,7 @@ var Proxy = function (settings, manage, test) {
 				}
 			}
 
-			var promises = _.map(['server', 'wss', 'nodeManager', 'wallet', 'firebase', 'nodeControl', 'exchanges', 'peertube', 'bots'], (i) => {
+			var promises = _.map(['server', 'wss', 'nodeManager', 'wallet', 'emails', 'firebase', 'nodeControl', 'exchanges', 'peertube', 'bots'], (i) => {
 				return self[i].destroy().catch(catchError(i)).then(() => {
 					return Promise.resolve()
 				})
@@ -1403,7 +1461,7 @@ var Proxy = function (settings, manage, test) {
 			},
 		},
 
-		wallet: {
+		wallet : {
 			sendwithprivatekey: {
 				path: '/wallet/sendwithprivatekey',
 				authorization: false,
@@ -1420,10 +1478,37 @@ var Proxy = function (settings, manage, test) {
 						});
 				},
 			},
+			check : {
+				path: '/wallet/check',
+				authorization: false, 
+				action: function({key}){
+
+					return self.wallet.check(key)
+
+				}
+			},
+
 			freeregistration: {
 				path: '/free/registration',
 				authorization: 'signature',
-				action: function ({ captcha, key, address, ip }) {
+				action: function ({ captcha, key, address, ip, emailVerification }) {
+
+					console.log('freeregistration', captcha, key, address, ip, emailVerification);
+
+					var emailsClbk = function(){
+
+						console.log('emailsClbk!!!');
+
+						if (emailVerification){
+							
+							var res = self.emails.update(emailVerification);
+							console.log('res!', res);
+							return res;
+						}
+
+						return Promise.reject('uniq')
+					}
+					
 					if (settings.server.captcha) {
 						if (!captcha || !captchas[captcha] || !captchas[captcha].done) {
 							return Promise.reject('captcha');
@@ -1431,13 +1516,16 @@ var Proxy = function (settings, manage, test) {
 					}
 
 					return self.wallet
-						.addqueue(key || 'registration', address, ip)
+						.addqueue(key || 'registration', address, ip, null, emailsClbk)
 						.then((r) => {
+
+							console.log('addqueue!!!', r);
 							return Promise.resolve({
 								data: r,
 							});
 						})
 						.catch((e) => {
+							console.log('addqueuerej!!!', e);
 							return Promise.reject(e);
 						});
 				},
@@ -1460,6 +1548,114 @@ var Proxy = function (settings, manage, test) {
 					});
 				},
 			},
+		},
+
+		emails : {
+
+			check : {
+				path : '/emails/check',
+				authorization : false,
+				action : function(p){
+	
+					console.log('emails/check', p);
+	
+					return self.emails.check(p).then(function(r){
+	
+						return Promise.resolve({
+							data : r
+						})
+	
+					}).catch(e => {
+	
+						return Promise.reject(e)
+					})
+	
+				}
+			},
+	
+			verify : {
+				path : '/emails/verify',
+				authorization : false,
+				action : function(p){
+	
+					console.log('emails/verify', p);
+	
+					return self.emails.verify(p).then(function(r){
+	
+						console.log('RRR!!', r, p);
+	
+						if (p.clbk){
+	
+							p.clbk(r);
+						}
+	
+						return Promise.resolve({
+							data : r
+						})
+	
+					}).catch(e => {
+	
+						return Promise.reject(e)
+					})
+	
+				}
+			},
+	
+			checkcode : {
+				path : '/emails/checkcode',
+				authorization : false,
+				action : function(p){
+	
+					console.log('emails/checkcode', p);
+	
+					return self.emails.checkcode(p).then(function(r){
+	
+						console.log('RRR!!', r, p);
+	
+						if (p.clbk){
+	
+							p.clbk(r);
+						}
+	
+						return Promise.resolve({
+							data : r
+						})
+	
+					}).catch(e => {
+						console.log('catch err checkcode', e);
+	
+						return Promise.reject(e)
+					})
+	
+				}
+			},
+	
+			update : {
+				path : '/emails/update',
+				authorization : false,
+				action : function(p){
+	
+					console.log('emails/update', p);
+	
+					return self.emails.update(p).then(function(r){
+	
+						if (p.clbk){
+	
+							p.clbk(r);
+						}
+	
+						return Promise.resolve({
+							data : r
+						})
+	
+					}).catch(e => {
+	
+						return Promise.reject(e)
+					})
+	
+				}
+			}
+	
 		},
 
 		manage: {

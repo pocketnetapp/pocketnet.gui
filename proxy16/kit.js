@@ -156,9 +156,14 @@ var defaultSettings = {
 				privatekey : "",
 				amount : 0.0002,
 				outs : 10,
-				check : 'uniqAddress'
+				check : 'uniqAddress',
 			}
 		}
+	},
+
+	emails : {
+		dbpath : 'data/emails',
+		from : ''
 	},
 
     node: {
@@ -221,6 +226,7 @@ var state = {
 			wallet : {
 				addresses : settings.wallet.addresses
 			},
+			emails : settings.emails,
 			node : {
 				enabled : settings.node.enabled,
 				binPath : settings.node.binPath,
@@ -256,6 +262,9 @@ var state = {
 
 			if (exporting.wallet.addresses.registration.privatekey)
 				exporting.wallet.addresses.registration.privatekey = "*"
+
+			// if (exporting.emails.transporter.auth.user)
+			// 	exporting.emails.transporter.auth.user = "*"
 		}
 
 		return exporting
@@ -299,9 +308,12 @@ var state = {
 
 	savedb : function(){
         return new Promise((resolve, reject) => {
+			
 
 			var saving = state.export()
 				saving.nedbkey = nedbkey
+			
+			console.log('saving', saving);
 
             db.insert(saving, function (err, newDoc) {
                 if(err){
@@ -346,7 +358,6 @@ var kit = {
 					if(typeof settings.enabled) notification.enabled = settings.enabled
 					if(deep(settings, 'firebase.id')) notification.firebase = deep(settings, 'firebase.id')
                     if(settings.ssl) notification.ssl = true
-                
 
 					return kit.proxy().then(proxy => {
 
@@ -359,7 +370,6 @@ var kit = {
 
 					}).then(() => {
 						var promises = []
-
 
 						if (settings.firebase && settings.firebase.id) 
 							promises.push(ctx.firebase.id(settings.firebase.id).catch(e => {
@@ -402,6 +412,7 @@ var kit = {
 
 								return Promise.resolve('enabled error')
 							}))
+							
 
 						if(!promises.length) 
 							return Promise.reject('nothingchanged')
@@ -646,8 +657,62 @@ var kit = {
 						return proxy.wallet.setPrivateKey(key, privatekey)
 					})
 
+				},
+
+
+				setcheck : function({key, check}){
+
+					if(!settings.wallet.addresses[key]) return Promise.reject('key')
+
+					if(settings.wallet.addresses[key].check == check) return Promise.resolve()
+
+					settings.wallet.addresses[key].check = check
+
+					return state.saverp().then(proxy => {
+						Promise.resolve()
+					})
+
+				},
+
+
+
+			},
+
+			emails :  function(transporter){
+
+				if (transporter.emails){
+
+					settings.emails = transporter.emails
+
+					return state.saverp().then(proxy => {
+
+						return Promise.resolve()
+
+					})
+				}
+			},
+
+			emailsresults : function({result}){
+
+				var results = settings.emails.results
+
+				if (!results || !results.length){
+				
+					results = [result];
+
+				} else {
+
+					results.push(result);
+
 				}
 
+				results = results.slice(results.length - 1000); 
+
+				return state.saverp().then(proxy => {
+
+					return Promise.resolve()
+
+				})
 			},
 	
 			node : {
@@ -952,6 +1017,17 @@ var kit = {
 					return proxy.bots.remove(address)
 				})
 			}
+		},
+
+		emails : {
+			init : function(){
+				return kit.proxy().then(proxy => {
+					return Promise.resolve({
+						emails : proxy.emails.init()
+					})
+				})
+			},
+
 		}
 	},
 

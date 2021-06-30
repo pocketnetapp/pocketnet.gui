@@ -10,7 +10,7 @@ var test = (function(){
 
 		var primary = deep(p, 'history');
 
-		var el, lastTransaction, ed, ref, plissing; 
+		var el, lastTransaction, ed, ref, plissing, emailRequire, emailVerification; 
 
 		var firstTime = false;
 
@@ -38,11 +38,15 @@ var test = (function(){
 			}
 		}
 
-		var actions = {		
+		var actions = {	
+			
+			sendCode : function(){
+
+				console.log('sendCode!!!');
+			},
 
 			saveemail : function(email, clbk){
 			
-
 				var _p = {
 					Email : email,
 					Lang : self.app.localization.key || 'en'
@@ -205,6 +209,14 @@ var test = (function(){
 						return
 					}
 
+					if (emailRequire && !emailVerification){
+
+						sitemessage(self.app.localization.e('uemailverify'));
+
+						return
+
+					}
+
 					var userInfo = new UserInfo();
 
 						userInfo.name.set(trim(tempInfo.name));
@@ -306,7 +318,6 @@ var test = (function(){
 										actions.saveemail(email);
 									}
 
-
 									self.sdk.node.transactions.create.commonFromUnspent(
 
 										userInfo,
@@ -336,6 +347,8 @@ var test = (function(){
 
 
 												self.app.platform.sdk.user.storage.me = tx
+
+												self.app.platform.sdk.user.storage.emailVerification = emailVerification;
 												
 												tempInfo = _.clone(self.app.platform.sdk.user.storage.me)
 												
@@ -567,6 +580,71 @@ var test = (function(){
 								})	
 							}
 						}
+
+
+						if (id === 'email' && emailRequire){
+
+							self.app.api.fetch('emails/check', {email: tempInfo[parameter.id]})
+							.then(function(result){
+								
+								if (!result || !result.newEmail){
+									
+									el.c.find('.confirmemail').fadeOut();
+
+									el.c.find('.erroremail').fadeIn();
+									el.c.find('.erroremail span').html('This email is taken in Pocketnet');	
+
+								} else {
+
+									el.c.find('.erroremail').fadeOut();
+
+									el.c.find('.confirmemail').show();
+
+								}
+
+							})
+							.catch(function(err){
+
+								el.c.find('.erroremail').fadeIn();
+								el.c.find('.erroremail span').html('Internal error');	
+
+							})
+
+						}
+
+						if (id === 'code'){
+
+							var emailVal = tempInfo['email'];
+							var codeVal =  tempInfo[parameter.id];
+
+							var dbData = {email: emailVal, code: Number(codeVal)}
+
+							self.app.api.fetch('emails/checkcode', dbData)
+							.then(function(result){
+
+								var inputCode = el.options.find('[parameter="code"] input');
+
+								if (result && result.code){
+
+									inputCode.removeClass('error');
+									inputCode.addClass('success');
+									emailVerification = dbData;
+
+								} else {
+
+									inputCode.removeClass('success');
+									inputCode.addClass('error');
+									emailVerification = null;
+
+								}
+							})
+							.catch(function(err){
+
+								console.log('checcode err', err);
+							})
+
+							
+						}
 					}
 
 					//if(id == 'ref'){
@@ -595,11 +673,19 @@ var test = (function(){
 				require : true
 			}),
 
+
 			email : new Parameter({
 				name : 'Email',
 				id : 'email',
 				type : "EMAIL",
-				onType : true,
+				require : true
+			}),
+
+			code : new Parameter({
+				name : self.app.localization.e('e133511'),
+				id : 'code',
+				type : "CODE",
+				require : true,
 			}),
 
 			language : new Parameter({
@@ -839,15 +925,19 @@ var test = (function(){
 		}
 
 		var events = {
+
+			sendCode : function(){
+		
+				actions.sendCode()
+	
+			},
 			signout : function(){
 				actions.signout()
 			},
 			save : function(){
-
 			
-					actions.save()
-				
-				
+				actions.save()
+							
 			},
 			cancel : function(){
 				actions.cancel()
@@ -873,6 +963,17 @@ var test = (function(){
 
 		var renders = {
 			options : function(clbk){
+
+				if (!emailRequire){
+
+					userOptions.email = new Parameter({
+						name : 'Email',
+						id : 'email',
+						type : "EMAIL",
+						require : false
+					})
+
+				}
 
 				self.shell({
 
@@ -1003,6 +1104,8 @@ var test = (function(){
 		}
 
 		var initEvents = function(){
+
+
 			el.import.on('click', events.importAddress)
 			el.showhidetestpanel.on('click', function(){
 				$(this).closest('.testPanel').toggleClass('active')
@@ -1011,7 +1114,9 @@ var test = (function(){
 			el.upanel.find('.cancel').on('click', events.cancel)
 			el.upanel.find('.save').on('click', events.save)
 
-			ParametersLive([setNode, setAddressType], el.c)			
+			ParametersLive([setNode, setAddressType], el.c)	
+			
+			el.c.find('.send button').on('click', events.sendCode);
 
 			el.signout.on('click', events.signout)
 
@@ -1026,11 +1131,96 @@ var test = (function(){
 
 		var make = function(){
 
-			renders.caption()
+			renders.caption();
 
 			renders.icon();
 
-			renders.options();
+			renders.options(function(){
+					
+				var emailWrapper = el.options.find('[parameter="email"]');
+				var changeemail = emailWrapper.find('.changeemail');
+				var emialInput = emailWrapper.find('input');
+				var codeWrapper = el.c.find('[parameter="code"]');
+				var codeInput = codeWrapper.find('input');
+
+				if (emailRequire){
+
+					el.c.find('.confirmemail button').click(function(){
+					
+						changeemail.show();
+						emialInput.prop('disabled', true);
+		
+						var email = emailWrapper.find('input').val();
+						
+
+						var lastVerifyDate = localStorage.getItem('lastVerifyDate');
+						var verifyDate = new Date().getTime();
+						var verifyInterval = verifyDate - Number(lastVerifyDate);
+
+						if (lastVerifyDate && verifyInterval < 40000){
+
+							console.log('verifyDate', verifyInterval)
+
+							sitemessage("Please, wait " + (Math.round(40 - verifyInterval / 1000)) + " seconds to send mail again");
+
+
+						} else {
+
+							localStorage.setItem('lastVerifyDate', String(verifyDate));
+		
+							self.app.api.fetch('emails/verify', {email})
+							.then(function(result){
+	
+								codeWrapper.show();
+								el.c.find('.errorconfirmemail').fadeOut();
+	
+								console.log('result emails/verify', result);
+	
+								self.app.api.fetchauth('manage', {
+									action : 'set.emailsresults',
+									data : {
+										result: 'success'
+									}
+								})
+							})
+							.catch(function(err){
+	
+								codeWrapper.hide();
+	
+								el.c.find('.errorconfirmemail').fadeIn();
+								el.c.find('.errorconfirmemail span').html('Email configuration error');	
+	
+								console.log('err emails/verify', err, Object.keys(err), Object.values(err));
+	
+								self.app.api.fetchauth('manage', {
+									action : 'set.emailsresults',
+									data : {
+										result: err
+									}
+								})
+	
+							})
+						}
+
+		
+						
+					})
+		
+		
+					emailWrapper.find('.changeemail').click(function(){
+		
+						changeemail.hide();
+						emialInput.prop('disabled', false);
+						codeInput.val();
+						codeWrapper.hide();
+		
+					})
+
+				}
+	
+	
+	
+			});
 
 			self.sdk.node.transactions.get.unspent(function(unspent){
 				renders.unspent(unspent)
@@ -1313,13 +1503,32 @@ var test = (function(){
 
 				el.signout = el.c.find('.signout')
 
+
 				initEvents();
 
 				actions.upanel();
+				
+				self.app.api.fetch('wallet/check', {key: 'registration'})
+				.then(function(result){
 
-				make();
+					console.log('wallet/check result', result);
+					emailRequire = true;
+					make();
 
-				p.clbk(null, p);
+					p.clbk(null, p);
+
+
+				}).catch(function(err){
+
+					console.log('wallet/check err',  err);
+
+					make();
+
+					p.clbk(null, p);
+
+
+				})
+
 			},
 
 			wnd : {

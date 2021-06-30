@@ -332,7 +332,18 @@
         padding : 2 * @rhythm 0;
         background: fade(@color-gray-slight, 12);
         margin-bottom: 2 * @rhythm;
+
+        .results {
+            margin-top: @rhythm * 2;
+
+            .count{               
+                color: @color-main;
+            }
+
+        }
     }
+
+    
 
     
 
@@ -523,6 +534,12 @@
                     padding-left: 0;
                     padding-right: 0;
                     text-align: center;
+                }
+
+                &.emails{
+                    width: 244px;
+                    text-decoration: underline;
+                    cursor: pointer;
                 }
 
                 &.balance{
@@ -1326,7 +1343,7 @@ html.stblack{
     
        
         .tablecaption{
-            background: @color-block;
+            background: transparent;
         }
     
      
@@ -1380,6 +1397,8 @@ html.stblack{
             }
             
         }
+
+
     }
 
     .proxieslist{
