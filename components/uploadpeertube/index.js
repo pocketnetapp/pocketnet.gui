@@ -17,7 +17,26 @@ var uploadpeertube = (function () {
 
     var actions = {};
 
-    var events = {};
+    var events = {
+      validateFile: (file) =>
+        new Promise((resolve, reject) => {
+          var video = document.createElement('video');
+          video.preload = 'metadata';
+
+          video.onloadedmetadata = () => {
+            window.URL.revokeObjectURL(video.src);
+
+            // to bits and then to bitrate
+            var averageBitrate = (8 * file.size) / video.duration;
+
+            return averageBitrate > 8000000 ? reject({
+              text: self.app.localization.e('videoBitrateError')
+            }) : resolve();
+          };
+
+          video.src = URL.createObjectURL(file);
+        }),
+    };
 
     var renders = {};
 
@@ -51,6 +70,7 @@ var uploadpeertube = (function () {
 
           return;
         }
+
         if (!videoInputFile[0].type.includes('video')) {
           el.videoError.text('Incorrect video format');
           el.videoError.addClass('error-message');
@@ -117,8 +137,9 @@ var uploadpeertube = (function () {
 
         el.importUrl.addClass('hidden');
 
-        self.app.peertubeHandler.api.videos
-          .upload(data, options)
+        events
+          .validateFile(videoInputFile[0])
+          .then(() => self.app.peertubeHandler.api.videos.upload(data, options))
           .then((response) => {
             el.uploadButton.prop('disabled', false);
             el.header.addClass('activeOnRolled');
@@ -138,7 +159,7 @@ var uploadpeertube = (function () {
             wndObj.close();
           })
           .catch((e) => {
-            console.log('ERROR', e);
+            console.error('Uploading error', e);
 
             el.videoInput.val('');
             el.wallpaperError.text('');

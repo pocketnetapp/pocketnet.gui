@@ -1064,3 +1064,5 @@ ____loclib.streamSettingsResult = 'Otherwise your live could be terminated or un
 ____loclib.keygeneration = 'Cryptography keys generation'
 
 ____loclib.failedStreamGeneration = 'Unable to start stream'
+
+____loclib.videoBitrateError = 'Video bitrate is too high. Please, use file with lower quality/resolution'

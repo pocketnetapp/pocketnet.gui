@@ -881,4 +881,6 @@ ____loclib.capitalWarning = 'ВНИМАНИЕ'
 ____loclib.streamSettingsWarn = 'Для корректной работы трансляции используйте настройки изображения не выше, чем следующие: битрейт - 2000 кбит/с, разрешение - 1920х1080 точек'
 ____loclib.streamSettingsResult = 'В противном случае ваш стрим может работать нестабильно.'
 
-____loclib.failedStreamGeneration = 'Unable to start stream'
+____loclib.failedStreamGeneration = 'Невозможно начать стрим.'
+
+____loclib.videoBitrateError = 'Битрейт видео слишком высокий. Пожалуйста, выберить файл с меньшим разрешением/битрейтом'
