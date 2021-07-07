@@ -98,6 +98,13 @@ var streampeertube = (function () {
     };
 
     var initEvents = function () {
+      el.c.find('.tooltip').tooltipster({
+        theme: 'tooltipster-light',
+        maxWidth: 600,
+        zIndex: 1006,
+        position: 'bottom',
+      });
+
       el.copyButton.each((index, button) => {
         var buttonElement = $(button);
 
@@ -112,9 +119,9 @@ var streampeertube = (function () {
         });
       });
 
-      el.c.find('.closewindowaction').on('click', function(){
-        wndObj.close()
-      })
+      el.c.find('.closewindowaction').on('click', function () {
+        wndObj.close();
+      });
     };
 
     return {
@@ -206,8 +213,6 @@ var streampeertube = (function () {
 
           el.streamButton.html('<i class="fas fa-check"></i> Stream Created');
           el.streamButton.addClass('successButton');
-
-          
 
           initEvents();
 
