@@ -3661,8 +3661,6 @@
 							ParametersLive([parameter], el, p)
 
 							return
-
-							console.log('value', value, parameter.labelToInput(label))
 						}
 						else
 						{
@@ -4073,7 +4071,6 @@
 						_el.addClass('error')
 					}
 
-					console.log("VALUE", value)
 
 					parameter.set(value)
 				}
@@ -10514,6 +10511,30 @@ serialize = function (obj) {
 	return str.join('&');
   };
   
+
+checkConnection = function() {
+	if (typeof window != 'undefined') {
+		if (window.cordova && navigator.connection && navigator.connection.type) {
+			var networkState = navigator.connection.type;
+	
+			var states = {};
+			states[Connection.UNKNOWN]  = 'UNKNOWN';
+			states[Connection.ETHERNET] = 'ETHERNET';
+			states[Connection.WIFI]     = 'WIFI';
+			states[Connection.CELL_2G]  = '2G';
+			states[Connection.CELL_3G]  = '3G';
+			states[Connection.CELL_4G]  = '4G';
+			states[Connection.CELL]     = 'CELL';
+			states[Connection.NONE]     = 'NONE';
+	
+			return states[networkState]
+		} else if (!window.cordova && navigator.connection && navigator.connection.type) {
+			return navigator.connection.type
+		} else {
+			return ''
+		}
+	}
+}
 
 stringEqTrig = function(s1, s2){
 
